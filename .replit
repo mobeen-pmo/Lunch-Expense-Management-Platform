@@ -1,7 +1,7 @@
-run = "python -m streamlit run app.py --server.port 8080 --server.address 0.0.0.0"
+run = "bash run.sh"
 
 [nix]
-channel = "stable-23_11"
+channel = "stable-24_05"
 
 [env]
-PYTHONPATH = "$PYTHONPATH:$REPLIT_ROOT"
+PYTHONUNBUFFERED = "1"
