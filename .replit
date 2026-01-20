@@ -1,4 +1,4 @@
-run = "bash run.sh"
+run = "python -m streamlit run app.py --server.port 8080 --server.address 0.0.0.0"
 
 [nix]
 channel = "stable-23_11"
