@@ -18,30 +18,30 @@ from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict
 import uuid
 
-# Try to import Google Sheets adapter (only available on Streamlit Cloud)
+# Try to import Cloud Database adapter (Firestore)
 try:
-    from db_gsheets import (
-        is_gsheets_available,
-        get_super_admin_gsheets,
-        save_super_admin_gsheets,
-        get_all_companies_gsheets,
-        save_all_companies_gsheets,
-        load_company_data_gsheets,
-        save_company_data_gsheets,
-        delete_company_data_gsheets
+    from db_firestore import (
+        is_firestore_available,
+        get_super_admin_firestore,
+        save_super_admin_firestore,
+        get_all_companies_firestore,
+        save_all_companies_firestore,
+        load_company_data_firestore,
+        save_company_data_firestore,
+        delete_company_data_firestore
     )
-    GSHEETS_AVAILABLE = is_gsheets_available()
+    CLOUD_DB_AVAILABLE = is_firestore_available()
 except ImportError:
-    GSHEETS_AVAILABLE = False
+    CLOUD_DB_AVAILABLE = False
 
 # Check if running on Streamlit Cloud
-def use_gsheets() -> bool:
-    """Determine if we should use Google Sheets for storage"""
-    if not GSHEETS_AVAILABLE:
+def use_cloud_db() -> bool:
+    """Determine if we should use Cloud DB (Firestore) for storage"""
+    if not CLOUD_DB_AVAILABLE:
         return False
     try:
-        from db_gsheets import is_gsheets_available
-        return is_gsheets_available()
+        from db_firestore import is_firestore_available
+        return is_firestore_available()
     except:
         return False
 
@@ -80,9 +80,9 @@ def verify_password(password: str, hashed: str) -> bool:
 # ==================== SUPER ADMIN ====================
 def get_super_admin():
     """Get super admin credentials"""
-    # Try Google Sheets first
-    if use_gsheets():
-        admin = get_super_admin_gsheets()
+    # Try Cloud DB first
+    if use_cloud_db():
+        admin = get_super_admin_firestore()
         if admin:
             return admin
     
@@ -102,9 +102,9 @@ def get_super_admin():
 
 def save_super_admin(admin_data):
     """Save super admin data"""
-    # Save to Google Sheets if available
-    if use_gsheets():
-        save_super_admin_gsheets(admin_data)
+    # Save to Cloud DB if available
+    if use_cloud_db():
+        save_super_admin_firestore(admin_data)
         return
     
     # Fall back to JSON file
@@ -125,9 +125,9 @@ def update_super_admin_password(new_password: str):
 # ==================== COMPANIES ====================
 def get_all_companies() -> List[Dict]:
     """Get all registered companies (for super admin)"""
-    # Try Google Sheets first
-    if use_gsheets():
-        companies = get_all_companies_gsheets()
+    # Try Cloud DB first
+    if use_cloud_db():
+        companies = get_all_companies_firestore()
         if companies is not None:
             return companies
     
@@ -139,9 +139,9 @@ def get_all_companies() -> List[Dict]:
 
 def save_all_companies(companies: List[Dict]):
     """Save all companies"""
-    # Save to Google Sheets if available
-    if use_gsheets():
-        save_all_companies_gsheets(companies)
+    # Save to Cloud DB if available
+    if use_cloud_db():
+        save_all_companies_firestore(companies)
         return
     
     # Fall back to JSON file
@@ -220,8 +220,8 @@ def delete_company(company_id: str):
     save_all_companies(companies)
     
     # Delete data file/entry
-    if use_gsheets():
-        delete_company_data_gsheets(company_id)
+    if use_cloud_db():
+        delete_company_data_firestore(company_id)
     else:
         file_path = get_company_data_file(company_id)
         if os.path.exists(file_path):
@@ -270,9 +270,9 @@ def load_company_data(company_id: str) -> Dict:
     """Load company data"""
     data = None
     
-    # Try Google Sheets first
-    if use_gsheets():
-        data = load_company_data_gsheets(company_id)
+    # Try Cloud DB first
+    if use_cloud_db():
+        data = load_company_data_firestore(company_id)
     
     # Fall back to JSON file
     if data is None:
@@ -304,9 +304,9 @@ def load_company_data(company_id: str) -> Dict:
 
 def save_company_data(company_id: str, data: Dict):
     """Save company data"""
-    # Save to Google Sheets if available
-    if use_gsheets():
-        save_company_data_gsheets(company_id, data)
+    # Save to Cloud DB if available
+    if use_cloud_db():
+        save_company_data_firestore(company_id, data)
         return
     
     # Fall back to JSON file

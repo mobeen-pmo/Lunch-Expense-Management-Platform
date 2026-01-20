@@ -47,9 +47,18 @@ from db_ops import (
     # Calculations
     calculate_daily_cost, calculate_monthly_consumption, get_monthly_balance,
     load_company_data,
-    use_gsheets, # New import
+    use_cloud_db, # New import
 )
 from config import DEFAULT_MONTHLY_COLLECTION
+
+# ... (Previous code)
+
+# Sidebar footer (at the end of file)
+# Note: I'm replacing the import block and the footer usage.
+# But replace_file_content handles contiguous blocks. 
+# I will just replace the import here. 
+# I need another call for the sidebar.
+
 
 # Try to import email service
 try:
@@ -1191,8 +1200,8 @@ else:
 # Sidebar footer
 with st.sidebar:
     st.markdown("---")
-    if use_gsheets():
-        st.success("☁️ Database: Google Sheets (Online)")
+    if use_cloud_db():
+        st.success("🔥 Database: Firestore (Fast)")
     else:
         st.warning("📂 Database: Local Storage (Offline)")
-    st.caption("Lunch Management System v3.1")
+    st.caption("Lunch Management System v3.2")
