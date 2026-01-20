@@ -135,6 +135,7 @@ def get_or_create_worksheet(name: str):
 
 # ==================== SUPER ADMIN ====================
 @retry_on_api_error()
+@st.cache_data(ttl=300)
 def get_super_admin_gsheets() -> Optional[Dict]:
     """Get super admin from Google Sheets"""
     ws = get_or_create_worksheet("super_admin")
@@ -164,9 +165,11 @@ def save_super_admin_gsheets(admin_data: Dict):
         admin_data.get("password_hash", ""),
         admin_data.get("created_at", datetime.now().isoformat())
     ])
+    get_super_admin_gsheets.clear()
 
 # ==================== COMPANIES ====================
 @retry_on_api_error()
+@st.cache_data(ttl=300)
 def get_all_companies_gsheets() -> List[Dict]:
     """Get all companies from Google Sheets"""
     ws = get_or_create_worksheet("companies")
@@ -195,27 +198,29 @@ def save_all_companies_gsheets(companies: List[Dict]):
     
     if not companies:
         ws.append_row(["id", "name", "admin_name", "admin_email", "password_hash", "created_at", "is_active"])
-        return
+    else:
+        # Header
+        headers = ["id", "name", "admin_name", "admin_email", "password_hash", "created_at", "is_active"]
+        ws.append_row(headers)
+        
+        # Data rows
+        for company in companies:
+            row = [
+                company.get("id", ""),
+                company.get("name", ""),
+                company.get("admin_name", ""),
+                company.get("admin_email", ""),
+                company.get("password_hash", ""),
+                company.get("created_at", ""),
+                str(company.get("is_active", True))
+            ]
+            ws.append_row(row)
     
-    # Header
-    headers = ["id", "name", "admin_name", "admin_email", "password_hash", "created_at", "is_active"]
-    ws.append_row(headers)
-    
-    # Data rows
-    for company in companies:
-        row = [
-            company.get("id", ""),
-            company.get("name", ""),
-            company.get("admin_name", ""),
-            company.get("admin_email", ""),
-            company.get("password_hash", ""),
-            company.get("created_at", ""),
-            str(company.get("is_active", True))
-        ]
-        ws.append_row(row)
+    get_all_companies_gsheets.clear()
 
 # ==================== COMPANY DATA ====================
 @retry_on_api_error()
+@st.cache_data(ttl=60)
 def load_company_data_gsheets(company_id: str) -> Optional[Dict]:
     """Load company data from Google Sheets"""
     ws = get_or_create_worksheet("company_data")
@@ -262,6 +267,8 @@ def save_company_data_gsheets(company_id: str, data: Dict):
     except Exception as e:
         # Re-raise to trigger retry
         raise e
+    finally:
+        load_company_data_gsheets.clear()
 
 @retry_on_api_error()
 def delete_company_data_gsheets(company_id: str):
@@ -278,9 +285,12 @@ def delete_company_data_gsheets(company_id: str):
                 break
     except:
         pass
+    finally:
+        load_company_data_gsheets.clear()
 
 # ==================== OTP STORE ====================
 @retry_on_api_error()
+@st.cache_data(ttl=300)
 def get_otp_store_gsheets() -> Dict:
     """Get OTP store from Google Sheets"""
     ws = get_or_create_worksheet("otp_store")
@@ -335,6 +345,8 @@ def save_otp_gsheets(email: str, otp_data: Dict):
             ])
     except Exception as e:
         raise e
+    finally:
+        get_otp_store_gsheets.clear()
 
 @retry_on_api_error()
 def delete_otp_gsheets(email: str):
@@ -351,3 +363,5 @@ def delete_otp_gsheets(email: str):
                 break
     except:
         pass
+    finally:
+        get_otp_store_gsheets.clear()

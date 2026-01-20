@@ -46,7 +46,8 @@ from db_ops import (
     get_menu_items, update_menu_price,
     # Calculations
     calculate_daily_cost, calculate_monthly_consumption, get_monthly_balance,
-    load_company_data
+    load_company_data,
+    use_gsheets, # New import
 )
 from config import DEFAULT_MONTHLY_COLLECTION
 
@@ -1186,3 +1187,12 @@ elif st.session_state.user_type == "super_admin":
     show_super_admin_dashboard()
 else:
     show_company_dashboard()
+
+# Sidebar footer
+with st.sidebar:
+    st.markdown("---")
+    if use_gsheets():
+        st.success("☁️ Database: Google Sheets (Online)")
+    else:
+        st.warning("📂 Database: Local Storage (Offline)")
+    st.caption("Lunch Management System v3.1")
