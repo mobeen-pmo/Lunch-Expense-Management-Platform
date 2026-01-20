@@ -775,16 +775,25 @@ def show_company_dashboard():
                     c_b.markdown(f"<h3 style='text-align: center'>{t_val}</h3>", unsafe_allow_html=True)
                     if c_c.button("➕", key="t_plus"):
                         t_val += 1
+                
+                # Extras Row
+                st.markdown("---")
+                e1, e2, e3 = st.columns(3)
+                with e1:
+                    rice_val = st.checkbox("🍚 Rice (Shared)", value=record.get("rice", False) if record else False)
+                with e2:
+                    salan_val = st.checkbox("🥘 Salan (Shared)", value=record.get("salan", False) if record else False)
+                with e3:
+                    other_val = st.checkbox("🥤 Other (Shared)", value=record.get("other", False) if record else False)
+
 
                 if st.button("Save Quick Entry", use_container_width=True):
                     add_daily_record(company_id, emp_id, today, roti=r_val, naan=n_val, tea=t_val, 
-                                     rice=record["rice"] if record else False,
-                                     salan=record["salan"] if record else False,
-                                     other=record["other"] if record else False)
+                                     rice=rice_val, salan=salan_val, other=other_val)
                     st.success(f"Saved for {target_emp['name']}!")
                     st.rerun()
             else:
-                st.info("No employees found.")
+                st.info("👋 **Welcome to your new Dashboard!**\n\nIt looks empty because there are no employees yet.\n\n1. Open the **Sidebar** (Top Left)\n2. Go to **👥 Employees**\n3. Click **➕ Add / Invite**\n\nOnce you add team members, the Quick Entry buttons (Roti, Naan, Tea) will appear here automatically!")
 
     # ===== EMPLOYEES =====
     elif page == "👥 Employees":
