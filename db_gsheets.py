@@ -9,84 +9,77 @@ on platforms like Streamlit Community Cloud where local file storage is not pers
 import json
 import os
 import streamlit as st
-from datetime import datetime
-from typing import Optional, List, Dict
+import time
+from functools import wraps
 
-# Check if we're running on Streamlit Cloud (has secrets configured)
-def is_gsheets_available() -> bool:
-    """Check if Google Sheets credentials are available"""
-    try:
-        return "gcp_service_account" in st.secrets and "gsheets" in st.secrets
-    except:
-        return False
-
-# Initialize gspread connection only when needed
-_client = None
-_spreadsheet = None
-
-def get_gspread_client():
-    """Get or create gspread client"""
-    global _client
-    if _client is None:
-        try:
-            import gspread
-            from google.oauth2.service_account import Credentials
-            
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            
-            credentials = Credentials.from_service_account_info(
-                st.secrets["gcp_service_account"],
-                scopes=scopes
-            )
-            _client = gspread.authorize(credentials)
-        except Exception as e:
-            st.error(f"Failed to connect to Google Sheets: {e}")
+# Simple retry decorator for API calls
+def retry_on_api_error(max_retries=3, delay=1):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    error_msg = str(e)
+                    # Handle specific API errors
+                    if "429" in error_msg or "quota" in error_msg.lower():
+                        time.sleep(delay * (2 ** retries))  # Exponential backoff
+                        retries += 1
+                        if retries == max_retries:
+                            st.error(f"System busy. Please try again in a moment. (Rate limit exceeded)")
+                            raise e
+                    elif "400" in error_msg and "already exists" in error_msg:
+                        # Be tolerant if sheet already exists
+                        return None 
+                    else:
+                        raise e
             return None
-    return _client
+        return wrapper
+    return decorator
 
-def get_spreadsheet():
-    """Get or open the spreadsheet"""
-    global _spreadsheet
-    if _spreadsheet is None:
-        client = get_gspread_client()
-        if client:
-            try:
-                spreadsheet_id = st.secrets["gsheets"]["spreadsheet_id"]
-                _spreadsheet = client.open_by_key(spreadsheet_id)
-            except Exception as e:
-                st.error(f"Failed to open spreadsheet: {e}")
-                return None
-    return _spreadsheet
+# Cache spreadsheet instance
+@st.cache_resource(ttl=3600)
+def get_cached_spreadsheet():
+    return get_spreadsheet()
 
 def get_or_create_worksheet(name: str):
     """Get worksheet by name, create if doesn't exist"""
-    spreadsheet = get_spreadsheet()
+    # Use cached spreadsheet instance if possible, or get fresh one
+    spreadsheet = get_cached_spreadsheet() or get_spreadsheet()
     if not spreadsheet:
         return None
     
     try:
         return spreadsheet.worksheet(name)
-    except Exception as e:
-        # Worksheet doesn't exist, try to create it
+    except:
+        # Worksheet doesn't exist or other error
         try:
             return spreadsheet.add_worksheet(title=name, rows=1000, cols=20)
         except Exception as create_error:
-            # Permission error - spreadsheet not shared with service account
             error_msg = str(create_error)
+            
+            # If it says it exists, try getting it again (race condition)
+            if "already exists" in error_msg:
+                try:
+                    return spreadsheet.worksheet(name)
+                except:
+                    pass
+            
             if "403" in error_msg or "permission" in error_msg.lower():
                 st.error("""
                     ⚠️ **Google Sheets Permission Error**
                     
-                    Please share your spreadsheet with the service account email:
+                    Please share your spreadsheet with:
                     `lunch-db-bot@lunch-expense.iam.gserviceaccount.com`
                     
                     Give it **Editor** access.
                 """)
-            else:
-                st.error(f"Failed to create worksheet '{name}': {create_error}")
+            elif "429" in error_msg:
+                st.warning("High traffic - slowing down requests...")
+                time.sleep(2)
+            
             return None
 
 # ==================== SUPER ADMIN ====================
