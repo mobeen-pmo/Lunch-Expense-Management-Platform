@@ -479,10 +479,10 @@ def show_login_page():
                                         st.rerun()
                                     else:
                                         st.error("Could not send OTP. Please try again.")
+                                else:
+                                    st.error("Email service not configured. Contact admin.")
                             else:
-                                st.error("Email service not configured. Contact admin.")
-                        else:
-                            st.error("Email not found")
+                                st.error("Email not found")
             
             elif st.session_state.reset_step == 2:
                 st.info(f"OTP sent to: {st.session_state.get('reset_email', '')}")
@@ -902,8 +902,6 @@ def show_company_dashboard():
                                     
                             except ValueError as e:
                                 st.error(str(e))
-                        else:
-                            st.error("Name and Email required")
                 
                 st.markdown("---")
                 st.subheader("Pending Invites")
