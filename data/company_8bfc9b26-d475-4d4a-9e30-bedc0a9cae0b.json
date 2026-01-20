@@ -1,0 +1,81 @@
+{
+  "employees": [
+    {
+      "id": "4d25cea0-304d-4ed1-8ddf-61b8daa8a372",
+      "name": "Ali",
+      "monthly_collection": 1000,
+      "created_at": "2026-01-19T18:20:22.229766"
+    },
+    {
+      "id": "b5d05207-b614-488c-9375-8911d1b00815",
+      "name": "Eman",
+      "monthly_collection": 1000,
+      "created_at": "2026-01-19T18:20:29.517494"
+    }
+  ],
+  "members": [],
+  "daily_records": [],
+  "monthly_collections": [],
+  "daily_shared_items": [
+    {
+      "id": "fa59a82a-e960-4487-a6f1-86973c6479e0",
+      "date": "2026-01-19",
+      "item_type": "rice",
+      "total_price": 200,
+      "description": "",
+      "created_at": "2026-01-19T18:20:43.298739"
+    },
+    {
+      "id": "4911a9ac-9162-4b92-b12c-bd42e0e71400",
+      "date": "2026-01-19",
+      "item_type": "salan",
+      "total_price": 100,
+      "description": "",
+      "created_at": "2026-01-19T18:20:44.362492"
+    }
+  ],
+  "menu_items": [
+    {
+      "id": "roti",
+      "name": "Roti",
+      "price": 20,
+      "unit": "piece",
+      "shared": false
+    },
+    {
+      "id": "naan",
+      "name": "Naan",
+      "price": 25,
+      "unit": "piece",
+      "shared": false
+    },
+    {
+      "id": "tea",
+      "name": "Tea",
+      "price": 15,
+      "unit": "cup",
+      "shared": false
+    },
+    {
+      "id": "rice",
+      "name": "Rice",
+      "price": 0,
+      "unit": "serving",
+      "shared": true
+    },
+    {
+      "id": "salan",
+      "name": "Salan",
+      "price": 0,
+      "unit": "serving",
+      "shared": true
+    },
+    {
+      "id": "other",
+      "name": "Other",
+      "price": 0,
+      "unit": "item",
+      "shared": true
+    }
+  ]
+}
