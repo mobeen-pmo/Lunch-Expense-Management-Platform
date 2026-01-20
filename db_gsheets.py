@@ -40,6 +40,55 @@ def retry_on_api_error(max_retries=3, delay=1):
         return wrapper
     return decorator
 
+# Check if we're running on Streamlit Cloud (has secrets configured)
+def is_gsheets_available() -> bool:
+    """Check if Google Sheets credentials are available"""
+    try:
+        return "gcp_service_account" in st.secrets and "gsheets" in st.secrets
+    except:
+        return False
+
+# Initialize gspread connection only when needed
+_client = None
+_spreadsheet = None
+
+def get_gspread_client():
+    """Get or create gspread client"""
+    global _client
+    if _client is None:
+        try:
+            import gspread
+            from google.oauth2.service_account import Credentials
+            
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            
+            credentials = Credentials.from_service_account_info(
+                st.secrets["gcp_service_account"],
+                scopes=scopes
+            )
+            _client = gspread.authorize(credentials)
+        except Exception as e:
+            st.error(f"Failed to connect to Google Sheets: {e}")
+            return None
+    return _client
+
+def get_spreadsheet():
+    """Get or open the spreadsheet"""
+    global _spreadsheet
+    if _spreadsheet is None:
+        client = get_gspread_client()
+        if client:
+            try:
+                spreadsheet_id = st.secrets["gsheets"]["spreadsheet_id"]
+                _spreadsheet = client.open_by_key(spreadsheet_id)
+            except Exception as e:
+                st.error(f"Failed to open spreadsheet: {e}")
+                return None
+    return _spreadsheet
+
 # Cache spreadsheet instance
 @st.cache_resource(ttl=3600)
 def get_cached_spreadsheet():
