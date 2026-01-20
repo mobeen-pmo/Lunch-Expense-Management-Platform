@@ -19,7 +19,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import base64
 import os
-import re
 
 from db_ops import (
     # Super Admin
@@ -46,19 +45,9 @@ from db_ops import (
     get_menu_items, update_menu_price,
     # Calculations
     calculate_daily_cost, calculate_monthly_consumption, get_monthly_balance,
-    load_company_data,
-    use_cloud_db, # New import
+    load_company_data
 )
 from config import DEFAULT_MONTHLY_COLLECTION
-
-# ... (Previous code)
-
-# Sidebar footer (at the end of file)
-# Note: I'm replacing the import block and the footer usage.
-# But replace_file_content handles contiguous blocks. 
-# I will just replace the import here. 
-# I need another call for the sidebar.
-
 
 # Try to import email service
 try:
@@ -215,11 +204,6 @@ def metric_card(label, value, icon=""):
         <div class="metric-label">{label}</div>
     </div>
     """, unsafe_allow_html=True)
-
-def is_valid_email(email):
-    """Check if email format is valid"""
-    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-    return re.match(pattern, email) is not None
 
 def format_pkr(amount):
     """Format amount as PKR without decimals"""
@@ -387,8 +371,6 @@ def show_login_page():
                             st.error("All fields are required")
                         elif reg_password != confirm_password:
                             st.error("Passwords don't match")
-                        elif not is_valid_email(admin_email):
-                            st.error("Invalid email format")
                         elif len(reg_password) < 6:
                             st.error("Password must be at least 6 characters")
                         elif get_company_by_email(admin_email):
@@ -473,26 +455,21 @@ def show_login_page():
                     reset_email = st.text_input("Email", placeholder="admin@company.com")
                     
                     if st.form_submit_button("Send Reset OTP", use_container_width=True):
-                        if not reset_email:
-                            st.error("Email is required")
-                        elif not is_valid_email(reset_email):
-                            st.error("Invalid email format")
-                        else:
-                            company = get_company_by_email(reset_email)
-                            if company:
-                                if EMAIL_ENABLED:
-                                    success, otp = send_password_reset_otp(reset_email, company["admin_name"])
-                                    if success:
-                                        st.session_state.reset_email = reset_email
-                                        st.session_state.reset_step = 2
-                                        st.success(f"OTP sent to {reset_email}")
-                                        st.rerun()
-                                    else:
-                                        st.error("Could not send OTP. Please try again.")
+                        company = get_company_by_email(reset_email)
+                        if company:
+                            if EMAIL_ENABLED:
+                                success, otp = send_password_reset_otp(reset_email, company["admin_name"])
+                                if success:
+                                    st.session_state.reset_email = reset_email
+                                    st.session_state.reset_step = 2
+                                    st.success(f"OTP sent to {reset_email}")
+                                    st.rerun()
                                 else:
-                                    st.error("Email service not configured. Contact admin.")
+                                    st.error("Could not send OTP. Please try again.")
                             else:
-                                st.error("Email not found")
+                                st.error("Email service not configured. Contact admin.")
+                        else:
+                            st.error("Email not found")
             
             elif st.session_state.reset_step == 2:
                 st.info(f"OTP sent to: {st.session_state.get('reset_email', '')}")
@@ -775,41 +752,26 @@ def show_company_dashboard():
                     c_b.markdown(f"<h3 style='text-align: center'>{t_val}</h3>", unsafe_allow_html=True)
                     if c_c.button("➕", key="t_plus"):
                         t_val += 1
-                
-                # Extras Row
-                st.markdown("---")
-                e1, e2, e3 = st.columns(3)
-                with e1:
-                    rice_val = st.checkbox("🍚 Rice (Shared)", value=record.get("rice", False) if record else False)
-                with e2:
-                    salan_val = st.checkbox("🥘 Salan (Shared)", value=record.get("salan", False) if record else False)
-                with e3:
-                    other_val = st.checkbox("🥤 Other (Shared)", value=record.get("other", False) if record else False)
-
 
                 if st.button("Save Quick Entry", use_container_width=True):
                     add_daily_record(company_id, emp_id, today, roti=r_val, naan=n_val, tea=t_val, 
-                                     rice=rice_val, salan=salan_val, other=other_val)
+                                     rice=record["rice"] if record else False,
+                                     salan=record["salan"] if record else False,
+                                     other=record["other"] if record else False)
                     st.success(f"Saved for {target_emp['name']}!")
                     st.rerun()
             else:
-                st.info("👋 **Welcome to your new Dashboard!**\n\nIt looks empty because there are no employees yet.\n\n1. Open the **Sidebar** (Top Left)\n2. Go to **👥 Employees**\n3. Click **➕ Add / Invite**\n\nOnce you add team members, the Quick Entry buttons (Roti, Naan, Tea) will appear here automatically!")
+                st.info("No employees found.")
 
     # ===== EMPLOYEES =====
     elif page == "👥 Employees":
         st.markdown('<h1 class="main-header">👥 Employees</h1>', unsafe_allow_html=True)
         
         # Tabs for adding/managing
-        # Tabs for adding/managing
         if has_permission("can_add_employees"):
             t1, t2 = st.tabs(["📋 List", "➕ Add / Invite"])
         else:
-            if has_permission("can_view_all"):
-                tabs = st.tabs(["📋 List"])
-                t1 = tabs[0]
-                t2 = None
-            else:
-                t1, t2 = None, None
+            t1, t2 = st.tabs(["📋 List"]) if has_permission("can_view_all") else (None, None)
             
         with t1 if t1 else st.container():
             employees = get_employees(company_id)
@@ -880,11 +842,7 @@ def show_company_dashboard():
                         ip_del_emps = st.checkbox("Can Delete Employees")
                     
                     if st.form_submit_button("Send Invite"):
-                        if not i_name or not i_email:
-                            st.error("Name and Email are required")
-                        elif not is_valid_email(i_email):
-                            st.error("Invalid email format")
-                        else:
+                        if i_name and i_email:
                             try:
                                 perms = DEFAULT_PERMISSIONS.copy()
                                 perms["can_add_entries"] = ip_add_entries
@@ -898,29 +856,20 @@ def show_company_dashboard():
                                 perms["can_delete_employees"] = ip_del_emps
                                 
                                 invite = create_invite_token(company_id, i_email, i_name, i_col, perms, st.session_state.user_name)
-                                
-                                # Get app URL dynamically
-                                try:
-                                    app_url = st.secrets.get("app_url", "")
-                                except:
-                                    app_url = ""
-                                
-                                if not app_url:
-                                    # Default to localhost for local development
-                                    app_url = "http://localhost:8501"
-                                
-                                invite_link = f"{app_url}/?invite={invite['token']}"
+                                invite_link = f"http://localhost:8501/?invite={invite['token']}"
                                 
                                 if EMAIL_ENABLED:
                                     send_employee_invite(i_email, st.session_state.company_name, i_name, st.session_state.user_name, invite_link)
                                     st.success(f"Invite sent to {i_email}!")
                                 else:
                                     st.warning("Email service not configured. Share this link manually:")
-                                    st.code(invite_link)
+                                    st.code(f"?invite={invite['token']}")
                                     st.success(f"Invite created for {i_name}")
                                     
                             except ValueError as e:
                                 st.error(str(e))
+                        else:
+                            st.error("Name and Email required")
                 
                 st.markdown("---")
                 st.subheader("Pending Invites")
@@ -1205,12 +1154,3 @@ elif st.session_state.user_type == "super_admin":
     show_super_admin_dashboard()
 else:
     show_company_dashboard()
-
-# Sidebar footer
-with st.sidebar:
-    st.markdown("---")
-    if use_cloud_db():
-        st.success("🔥 Database: Firestore (Fast)")
-    else:
-        st.warning("📂 Database: Local Storage (Offline)")
-    st.caption("Lunch Management System v3.2")
