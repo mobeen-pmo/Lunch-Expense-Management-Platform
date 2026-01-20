@@ -69,9 +69,25 @@ def get_or_create_worksheet(name: str):
     
     try:
         return spreadsheet.worksheet(name)
-    except:
-        # Create worksheet if not exists
-        return spreadsheet.add_worksheet(title=name, rows=1000, cols=20)
+    except Exception as e:
+        # Worksheet doesn't exist, try to create it
+        try:
+            return spreadsheet.add_worksheet(title=name, rows=1000, cols=20)
+        except Exception as create_error:
+            # Permission error - spreadsheet not shared with service account
+            error_msg = str(create_error)
+            if "403" in error_msg or "permission" in error_msg.lower():
+                st.error("""
+                    ⚠️ **Google Sheets Permission Error**
+                    
+                    Please share your spreadsheet with the service account email:
+                    `lunch-db-bot@lunch-expense.iam.gserviceaccount.com`
+                    
+                    Give it **Editor** access.
+                """)
+            else:
+                st.error(f"Failed to create worksheet '{name}': {create_error}")
+            return None
 
 # ==================== SUPER ADMIN ====================
 def get_super_admin_gsheets() -> Optional[Dict]:
