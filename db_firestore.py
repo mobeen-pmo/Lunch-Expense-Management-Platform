@@ -1,172 +1,111 @@
+"""
+Firestore Database Adapter for Lunch Management System
+Developed by Software Bazaar IT Solutions
+"""
 
 import streamlit as st
-from google.cloud import firestore
-from google.oauth2 import service_account
 import json
 from datetime import datetime
-from typing import Optional, List, Dict
 
-# Check availability
-def is_firestore_available() -> bool:
-    """Check if Firestore credentials are available"""
+# Initialize Firestore
+_db = None
+
+def get_firestore_client():
+    """Get Firestore client, initializing if needed"""
+    global _db
+    
+    if _db is not None:
+        return _db
+    
     try:
-        return "gcp_service_account" in st.secrets
-    except:
+        import firebase_admin
+        from firebase_admin import credentials, firestore
+        
+        # Check if secrets are available
+        if "firebase" not in st.secrets:
+            return None
+        
+        # Check if already initialized
+        if not firebase_admin._apps:
+            cred_dict = dict(st.secrets["firebase"])
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+        
+        _db = firestore.client()
+        return _db
+        
+    except Exception as e:
+        print(f"Firestore init error: {e}")
+        return None
+
+
+# ==================== DATA OPERATIONS ====================
+
+def load_firestore_data(key_type: str, record_id: str = None):
+    """
+    Load data from Firestore.
+    key_type: 'super_admin', 'companies', 'company_data'
+    """
+    db = get_firestore_client()
+    if not db:
+        return None
+
+    try:
+        if key_type == "super_admin":
+            doc = db.collection("config").document("super_admin").get()
+            return doc.to_dict() if doc.exists else None
+            
+        elif key_type == "companies":
+            docs = db.collection("companies").stream()
+            return [doc.to_dict() for doc in docs]
+
+        elif key_type == "company_data":
+            if not record_id:
+                return None
+            doc = db.collection("company_data").document(record_id).get()
+            return doc.to_dict() if doc.exists else None
+            
+    except Exception as e:
+        print(f"Firestore read error ({key_type}): {e}")
+        return None
+
+
+def save_firestore_data(key_type: str, data, record_id: str = None):
+    """
+    Save data to Firestore.
+    key_type: 'super_admin', 'companies', 'company_data'
+    """
+    db = get_firestore_client()
+    if not db:
         return False
 
-# Connection Management
-_db_client = None
-
-def get_db():
-    """Get or create Firestore client"""
-    global _db_client
-    if _db_client is None:
-        try:
-            # Create credentials from secrets
-            key_dict = dict(st.secrets["gcp_service_account"])
-            creds = service_account.Credentials.from_service_account_info(key_dict)
+    try:
+        if key_type == "super_admin":
+            db.collection("config").document("super_admin").set(data)
+            return True
             
-            # Create client
-            _db_client = firestore.Client(credentials=creds, project=key_dict["project_id"])
-        except Exception as e:
-            st.error(f"Failed to connect to Firestore: {str(e)}")
-            return None
-    return _db_client
-
-# ==================== SUPER ADMIN ====================
-def get_super_admin_firestore() -> Optional[Dict]:
-    """Get super admin config"""
-    db = get_db()
-    if not db: return None
-    
-    try:
-        doc = db.collection("super_admin").document("config").get()
-        if doc.exists:
-            return doc.to_dict()
-        return None
-    except:
-        return None
-
-def save_super_admin_firestore(admin_data: Dict):
-    """Save super admin config"""
-    db = get_db()
-    if not db: return
-    
-    try:
-        db.collection("super_admin").document("config").set(admin_data)
-    except Exception as e:
-        st.error(f"Firestore Save Error: {e}")
-
-# ==================== COMPANIES ====================
-def get_all_companies_firestore() -> List[Dict]:
-    """Get all registered companies"""
-    db = get_db()
-    if not db: return []
-    
-    try:
-        # We store companies as individual documents in 'companies' collection
-        # ID is the doc ID
-        docs = db.collection("companies").stream()
-        companies = []
-        for doc in docs:
-            companies.append(doc.to_dict())
-        return companies
-    except:
-        return []
-
-def save_all_companies_firestore(companies: List[Dict]):
-    """Save all companies. 
-    Note: In Firestore we update/add individually, but to match the interface 
-    which passes the FULL list, we should be careful. 
-    Ideally we just update the modified one, but db_ops sends the whole list.
-    We will sync the list to the collection."""
-    db = get_db()
-    if not db: return
-    
-    try:
-        # Batch write for efficiency
-        batch = db.batch()
-        
-        # We assume the list contains ALL companies. 
-        # Existing companies loop
-        for company in companies:
-            ref = db.collection("companies").document(company["id"])
-            batch.set(ref, company)
+        elif key_type == "companies":
+            # For companies, we store as individual documents
+            # First clear existing
+            batch = db.batch()
+            existing = db.collection("companies").stream()
+            for doc in existing:
+                batch.delete(doc.reference)
+            batch.commit()
             
-        # Commit
-        batch.commit()
+            # Add new
+            for company in data:
+                db.collection("companies").document(company["id"]).set(company)
+            return True
+
+        elif key_type == "company_data":
+            if not record_id:
+                return False
+            # Add timestamp
+            data["_updated_at"] = datetime.now().isoformat()
+            db.collection("company_data").document(record_id).set(data)
+            return True
+            
     except Exception as e:
-        st.error(f"Firestore Save Error: {e}")
-
-# ==================== COMPANY DATA ====================
-def load_company_data_firestore(company_id: str) -> Optional[Dict]:
-    """Load company data (employees, records, etc)"""
-    db = get_db()
-    if not db: return None
-    
-    try:
-        # We store all company data in one large document to match the JSON structure logic
-        # Collection: 'company_data', Document: company_id
-        doc = db.collection("company_data").document(company_id).get()
-        if doc.exists:
-            return doc.to_dict()
-        return None
-    except:
-        return None
-
-def save_company_data_firestore(company_id: str, data: Dict):
-    """Save company data"""
-    db = get_db()
-    if not db: return
-    
-    try:
-        db.collection("company_data").document(company_id).set(data)
-    except Exception as e:
-        st.error(f"Firestore Save Error: {e}")
-        raise e
-
-def delete_company_data_firestore(company_id: str):
-    """Delete company data"""
-    db = get_db()
-    if not db: return
-    
-    try:
-        db.collection("company_data").document(company_id).delete()
-    except:
-        pass
-
-# ==================== OTP STORE ====================
-def get_otp_store_firestore() -> Dict:
-    """Get OTP store"""
-    db = get_db()
-    if not db: return {}
-    
-    try:
-        docs = db.collection("otp_store").stream()
-        store = {}
-        for doc in docs:
-            store[doc.id] = doc.to_dict()
-        return store
-    except:
-        return {}
-
-def save_otp_firestore(email: str, otp_data: Dict):
-    """Save single OTP entry"""
-    db = get_db()
-    if not db: return
-    
-    try:
-        # Use email as document ID
-        db.collection("otp_store").document(email).set(otp_data)
-    except Exception as e:
-        raise e
-
-def delete_otp_firestore(email: str):
-    """Delete OTP entry"""
-    db = get_db()
-    if not db: return
-    
-    try:
-        db.collection("otp_store").document(email).delete()
-    except:
-        pass
+        print(f"Firestore write error ({key_type}): {e}")
+        return False

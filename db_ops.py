@@ -7,7 +7,6 @@ Features:
 - Multi-Company Support
 - Role-based Access (Admin/Member)
 - Data Isolation per Company
-- Auto-switches between JSON (local) and Google Sheets (production)
 """
 
 import json
@@ -18,32 +17,16 @@ from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict
 import uuid
 
-# Try to import Cloud Database adapter (Firestore)
+# Try to import db_firestore
 try:
-    from db_firestore import (
-        is_firestore_available,
-        get_super_admin_firestore,
-        save_super_admin_firestore,
-        get_all_companies_firestore,
-        save_all_companies_firestore,
-        load_company_data_firestore,
-        save_company_data_firestore,
-        delete_company_data_firestore
-    )
-    CLOUD_DB_AVAILABLE = is_firestore_available()
+    import db_firestore
+    # Check if we can connect to Firestore
+    if db_firestore.get_firestore_client():
+        DB_TYPE = "firestore"
+    else:
+        DB_TYPE = "local"
 except ImportError:
-    CLOUD_DB_AVAILABLE = False
-
-# Check if running on Streamlit Cloud
-def use_cloud_db() -> bool:
-    """Determine if we should use Cloud DB (Firestore) for storage"""
-    if not CLOUD_DB_AVAILABLE:
-        return False
-    try:
-        from db_firestore import is_firestore_available
-        return is_firestore_available()
-    except:
-        return False
+    DB_TYPE = "local"
 
 # Default permissions for new employees
 DEFAULT_PERMISSIONS = {
@@ -66,8 +49,8 @@ SUPER_ADMIN_FILE = os.path.join(DATA_DIR, "super_admin.json")
 COMPANIES_FILE = os.path.join(DATA_DIR, "companies.json")
 
 # Ensure data directory exists
-os.makedirs(DATA_DIR, exist_ok=True)
-
+if DB_TYPE == "local":
+    os.makedirs(DATA_DIR, exist_ok=True)
 
 def hash_password(password: str) -> str:
     """Hash password using SHA-256"""
@@ -80,17 +63,14 @@ def verify_password(password: str, hashed: str) -> bool:
 # ==================== SUPER ADMIN ====================
 def get_super_admin():
     """Get super admin credentials"""
-    # Try Cloud DB first
-    if use_cloud_db():
-        admin = get_super_admin_firestore()
+    if DB_TYPE == "firestore":
+        admin = db_firestore.load_firestore_data("super_admin")
         if admin:
             return admin
-    
-    # Fall back to JSON file
-    if os.path.exists(SUPER_ADMIN_FILE):
+    elif os.path.exists(SUPER_ADMIN_FILE):
         with open(SUPER_ADMIN_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    
+            
     # Default super admin - Software Bazaar IT Solutions
     default_admin = {
         "email": "softwarebazaaritsolutions@gmail.com",
@@ -102,12 +82,10 @@ def get_super_admin():
 
 def save_super_admin(admin_data):
     """Save super admin data"""
-    # Save to Cloud DB if available
-    if use_cloud_db():
-        save_super_admin_firestore(admin_data)
+    if DB_TYPE == "firestore":
+        db_firestore.save_firestore_data("super_admin", admin_data)
         return
-    
-    # Fall back to JSON file
+        
     with open(SUPER_ADMIN_FILE, 'w', encoding='utf-8') as f:
         json.dump(admin_data, f, indent=2)
 
@@ -125,13 +103,9 @@ def update_super_admin_password(new_password: str):
 # ==================== COMPANIES ====================
 def get_all_companies() -> List[Dict]:
     """Get all registered companies (for super admin)"""
-    # Try Cloud DB first
-    if use_cloud_db():
-        companies = get_all_companies_firestore()
-        if companies is not None:
-            return companies
-    
-    # Fall back to JSON file
+    if DB_TYPE == "firestore":
+        return db_firestore.load_firestore_data("companies") or []
+        
     if os.path.exists(COMPANIES_FILE):
         with open(COMPANIES_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -139,12 +113,10 @@ def get_all_companies() -> List[Dict]:
 
 def save_all_companies(companies: List[Dict]):
     """Save all companies"""
-    # Save to Cloud DB if available
-    if use_cloud_db():
-        save_all_companies_firestore(companies)
+    if DB_TYPE == "firestore":
+        db_firestore.save_firestore_data("companies", companies)
         return
-    
-    # Fall back to JSON file
+        
     with open(COMPANIES_FILE, 'w', encoding='utf-8') as f:
         json.dump(companies, f, indent=2, default=str)
 
@@ -219,13 +191,10 @@ def delete_company(company_id: str):
     companies = [c for c in companies if c["id"] != company_id]
     save_all_companies(companies)
     
-    # Delete data file/entry
-    if use_cloud_db():
-        delete_company_data_firestore(company_id)
-    else:
-        file_path = get_company_data_file(company_id)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+    # Delete data file
+    file_path = get_company_data_file(company_id)
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
 def get_company_by_email(email: str) -> Optional[Dict]:
     """Get company by admin email"""
@@ -268,48 +237,58 @@ def init_company_data(company_id: str):
 
 def load_company_data(company_id: str) -> Dict:
     """Load company data"""
-    data = None
-    
-    # Try Cloud DB first
-    if use_cloud_db():
-        data = load_company_data_firestore(company_id)
-    
-    # Fall back to JSON file
-    if data is None:
-        file_path = get_company_data_file(company_id)
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-    
-    if data:
-        # Ensure tea exists in menu items
-        menu_ids = [m["id"] for m in data.get("menu_items", [])]
-        if "tea" not in menu_ids:
-            data["menu_items"].append(
-                {"id": "tea", "name": "Tea", "price": 15, "unit": "cup", "shared": False}
-            )
-        # Update tea to fixed price if it was shared
-        for item in data["menu_items"]:
-            if item["id"] == "tea" and item.get("shared", True):
-                item["shared"] = False
-                if item["price"] == 0:
-                    item["price"] = 15
-        if "members" not in data:
-            data["members"] = []
-        return data
-    
-    # No data found, initialize new company data
+    # Firestore
+    if DB_TYPE == "firestore":
+        data = db_firestore.load_firestore_data("company_data", company_id)
+        if data:
+            # Schema migration/validation same as local
+            menu_ids = [m["id"] for m in data.get("menu_items", [])]
+            if "tea" not in menu_ids:
+                data["menu_items"].append(
+                    {"id": "tea", "name": "Tea", "price": 15, "unit": "cup", "shared": False}
+                )
+            for item in data["menu_items"]:
+                if item["id"] == "tea" and item.get("shared", True):
+                    item["shared"] = False
+                    if item["price"] == 0:
+                        item["price"] = 15
+            if "members" not in data:
+                data["members"] = []
+            return data
+        else:
+            # Init empty
+            init_company_data(company_id)
+            return load_company_data(company_id)
+
+    # Local File
+    file_path = get_company_data_file(company_id)
+    if os.path.exists(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            # Ensure tea exists in menu items
+            menu_ids = [m["id"] for m in data.get("menu_items", [])]
+            if "tea" not in menu_ids:
+                data["menu_items"].append(
+                    {"id": "tea", "name": "Tea", "price": 15, "unit": "cup", "shared": False}
+                )
+            # Update tea to fixed price if it was shared
+            for item in data["menu_items"]:
+                if item["id"] == "tea" and item.get("shared", True):
+                    item["shared"] = False
+                    if item["price"] == 0:
+                        item["price"] = 15
+            if "members" not in data:
+                data["members"] = []
+            return data
     init_company_data(company_id)
     return load_company_data(company_id)
 
 def save_company_data(company_id: str, data: Dict):
     """Save company data"""
-    # Save to Cloud DB if available
-    if use_cloud_db():
-        save_company_data_firestore(company_id, data)
+    if DB_TYPE == "firestore":
+        db_firestore.save_firestore_data("company_data", data, company_id)
         return
-    
-    # Fall back to JSON file
+        
     file_path = get_company_data_file(company_id)
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, default=str)
