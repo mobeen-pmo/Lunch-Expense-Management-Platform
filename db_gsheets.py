@@ -8,9 +8,10 @@ on platforms like Streamlit Community Cloud where local file storage is not pers
 
 import json
 import os
-import streamlit as st
 import time
 from functools import wraps
+from typing import Optional, List, Dict
+import streamlit as st
 
 # Simple retry decorator for API calls
 def retry_on_api_error(max_retries=3, delay=1):
