@@ -1,0 +1,7 @@
+run = "bash run.sh"
+
+[nix]
+channel = "stable-23_11"
+
+[env]
+PYTHONPATH = "$PYTHONPATH:$REPLIT_ROOT"
