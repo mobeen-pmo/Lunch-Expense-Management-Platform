@@ -134,6 +134,7 @@ def get_or_create_worksheet(name: str):
             return None
 
 # ==================== SUPER ADMIN ====================
+@retry_on_api_error()
 def get_super_admin_gsheets() -> Optional[Dict]:
     """Get super admin from Google Sheets"""
     ws = get_or_create_worksheet("super_admin")
@@ -148,6 +149,7 @@ def get_super_admin_gsheets() -> Optional[Dict]:
     except:
         return None
 
+@retry_on_api_error()
 def save_super_admin_gsheets(admin_data: Dict):
     """Save super admin to Google Sheets"""
     ws = get_or_create_worksheet("super_admin")
@@ -164,6 +166,7 @@ def save_super_admin_gsheets(admin_data: Dict):
     ])
 
 # ==================== COMPANIES ====================
+@retry_on_api_error()
 def get_all_companies_gsheets() -> List[Dict]:
     """Get all companies from Google Sheets"""
     ws = get_or_create_worksheet("companies")
@@ -180,6 +183,7 @@ def get_all_companies_gsheets() -> List[Dict]:
     except:
         return []
 
+@retry_on_api_error()
 def save_all_companies_gsheets(companies: List[Dict]):
     """Save all companies to Google Sheets"""
     ws = get_or_create_worksheet("companies")
@@ -211,6 +215,7 @@ def save_all_companies_gsheets(companies: List[Dict]):
         ws.append_row(row)
 
 # ==================== COMPANY DATA ====================
+@retry_on_api_error()
 def load_company_data_gsheets(company_id: str) -> Optional[Dict]:
     """Load company data from Google Sheets"""
     ws = get_or_create_worksheet("company_data")
@@ -219,13 +224,16 @@ def load_company_data_gsheets(company_id: str) -> Optional[Dict]:
     
     try:
         records = ws.get_all_records()
+        current_data = None
+        # Get the latest entry for this company
         for r in records:
             if r.get("company_id") == company_id:
-                return json.loads(r.get("data_json", "{}"))
-        return None
+                current_data = json.loads(r.get("data_json", "{}"))
+        return current_data
     except:
         return None
 
+@retry_on_api_error()
 def save_company_data_gsheets(company_id: str, data: Dict):
     """Save company data to Google Sheets"""
     ws = get_or_create_worksheet("company_data")
@@ -233,7 +241,9 @@ def save_company_data_gsheets(company_id: str, data: Dict):
         return
     
     try:
-        # Find existing row
+        data_json = json.dumps(data, default=str)
+        
+        # Get all records to check for existing
         records = ws.get_all_records()
         row_idx = None
         for idx, r in enumerate(records):
@@ -241,26 +251,19 @@ def save_company_data_gsheets(company_id: str, data: Dict):
                 row_idx = idx + 2  # +2 for header and 1-indexing
                 break
         
-        data_json = json.dumps(data, default=str)
-        
         if row_idx:
-            # Update existing
+            # Update existing row
             ws.update_cell(row_idx, 2, data_json)
             ws.update_cell(row_idx, 3, datetime.now().isoformat())
         else:
-            # Check if header exists
-            try:
-                header = ws.row_values(1)
-                if not header:
-                    ws.append_row(["company_id", "data_json", "updated_at"])
-            except:
-                ws.append_row(["company_id", "data_json", "updated_at"])
-            
-            # Add new row
+            # Append new row
             ws.append_row([company_id, data_json, datetime.now().isoformat()])
+            
     except Exception as e:
-        st.error(f"Error saving company data: {e}")
+        # Re-raise to trigger retry
+        raise e
 
+@retry_on_api_error()
 def delete_company_data_gsheets(company_id: str):
     """Delete company data from Google Sheets"""
     ws = get_or_create_worksheet("company_data")
@@ -277,6 +280,7 @@ def delete_company_data_gsheets(company_id: str):
         pass
 
 # ==================== OTP STORE ====================
+@retry_on_api_error()
 def get_otp_store_gsheets() -> Dict:
     """Get OTP store from Google Sheets"""
     ws = get_or_create_worksheet("otp_store")
@@ -298,6 +302,7 @@ def get_otp_store_gsheets() -> Dict:
     except:
         return {}
 
+@retry_on_api_error()
 def save_otp_gsheets(email: str, otp_data: Dict):
     """Save OTP to Google Sheets"""
     ws = get_or_create_worksheet("otp_store")
@@ -305,7 +310,11 @@ def save_otp_gsheets(email: str, otp_data: Dict):
         return
     
     try:
-        # Find existing row for this email
+        # Optimistic append for logs/OTPs to avoid read-before-write overhead if possible
+        # But for unique email limit we need to check. 
+        # To save quota, just append and clean up later OR filter on read. 
+        # Logic here: Check if exists, update.
+        
         records = ws.get_all_records()
         row_idx = None
         for idx, r in enumerate(records):
@@ -314,20 +323,10 @@ def save_otp_gsheets(email: str, otp_data: Dict):
                 break
         
         if row_idx:
-            # Update existing
             ws.update_cell(row_idx, 2, otp_data.get("otp", ""))
             ws.update_cell(row_idx, 3, otp_data.get("created_at", ""))
             ws.update_cell(row_idx, 4, otp_data.get("expires_at", ""))
         else:
-            # Check header
-            try:
-                header = ws.row_values(1)
-                if not header:
-                    ws.append_row(["email", "otp", "created_at", "expires_at"])
-            except:
-                ws.append_row(["email", "otp", "created_at", "expires_at"])
-            
-            # Add new
             ws.append_row([
                 email,
                 otp_data.get("otp", ""),
@@ -335,8 +334,9 @@ def save_otp_gsheets(email: str, otp_data: Dict):
                 otp_data.get("expires_at", "")
             ])
     except Exception as e:
-        st.error(f"Error saving OTP: {e}")
+        raise e
 
+@retry_on_api_error()
 def delete_otp_gsheets(email: str):
     """Delete OTP from Google Sheets"""
     ws = get_or_create_worksheet("otp_store")

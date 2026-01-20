@@ -19,6 +19,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import base64
 import os
+import re
 
 from db_ops import (
     # Super Admin
@@ -205,6 +206,11 @@ def metric_card(label, value, icon=""):
     </div>
     """, unsafe_allow_html=True)
 
+def is_valid_email(email):
+    """Check if email format is valid"""
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return re.match(pattern, email) is not None
+
 def format_pkr(amount):
     """Format amount as PKR without decimals"""
     return f"PKR {int(amount):,}"
@@ -371,6 +377,8 @@ def show_login_page():
                             st.error("All fields are required")
                         elif reg_password != confirm_password:
                             st.error("Passwords don't match")
+                        elif not is_valid_email(admin_email):
+                            st.error("Invalid email format")
                         elif len(reg_password) < 6:
                             st.error("Password must be at least 6 characters")
                         elif get_company_by_email(admin_email):
@@ -455,17 +463,22 @@ def show_login_page():
                     reset_email = st.text_input("Email", placeholder="admin@company.com")
                     
                     if st.form_submit_button("Send Reset OTP", use_container_width=True):
-                        company = get_company_by_email(reset_email)
-                        if company:
-                            if EMAIL_ENABLED:
-                                success, otp = send_password_reset_otp(reset_email, company["admin_name"])
-                                if success:
-                                    st.session_state.reset_email = reset_email
-                                    st.session_state.reset_step = 2
-                                    st.success(f"OTP sent to {reset_email}")
-                                    st.rerun()
-                                else:
-                                    st.error("Could not send OTP. Please try again.")
+                        if not reset_email:
+                            st.error("Email is required")
+                        elif not is_valid_email(reset_email):
+                            st.error("Invalid email format")
+                        else:
+                            company = get_company_by_email(reset_email)
+                            if company:
+                                if EMAIL_ENABLED:
+                                    success, otp = send_password_reset_otp(reset_email, company["admin_name"])
+                                    if success:
+                                        st.session_state.reset_email = reset_email
+                                        st.session_state.reset_step = 2
+                                        st.success(f"OTP sent to {reset_email}")
+                                        st.rerun()
+                                    else:
+                                        st.error("Could not send OTP. Please try again.")
                             else:
                                 st.error("Email service not configured. Contact admin.")
                         else:
@@ -768,10 +781,16 @@ def show_company_dashboard():
         st.markdown('<h1 class="main-header">👥 Employees</h1>', unsafe_allow_html=True)
         
         # Tabs for adding/managing
+        # Tabs for adding/managing
         if has_permission("can_add_employees"):
             t1, t2 = st.tabs(["📋 List", "➕ Add / Invite"])
         else:
-            t1, t2 = st.tabs(["📋 List"]) if has_permission("can_view_all") else (None, None)
+            if has_permission("can_view_all"):
+                tabs = st.tabs(["📋 List"])
+                t1 = tabs[0]
+                t2 = None
+            else:
+                t1, t2 = None, None
             
         with t1 if t1 else st.container():
             employees = get_employees(company_id)
@@ -842,7 +861,11 @@ def show_company_dashboard():
                         ip_del_emps = st.checkbox("Can Delete Employees")
                     
                     if st.form_submit_button("Send Invite"):
-                        if i_name and i_email:
+                        if not i_name or not i_email:
+                            st.error("Name and Email are required")
+                        elif not is_valid_email(i_email):
+                            st.error("Invalid email format")
+                        else:
                             try:
                                 perms = DEFAULT_PERMISSIONS.copy()
                                 perms["can_add_entries"] = ip_add_entries
