@@ -18,15 +18,10 @@ from typing import Optional, List, Dict
 import uuid
 
 # Try to import db_firestore
-try:
-    import db_firestore
-    # Check if we can connect to Firestore
-    if db_firestore.get_firestore_client():
-        DB_TYPE = "firestore"
-    else:
-        DB_TYPE = "local"
-except ImportError:
-    DB_TYPE = "local"
+# Try to import db_firestore
+# DISABLED: Using local JSON files from data/ folder
+
+DB_TYPE = "local"
 
 # Default permissions for new employees
 DEFAULT_PERMISSIONS = {
@@ -800,4 +795,5 @@ def delete_invite(company_id: str, invite_id: str):
     data = load_company_data(company_id)
     data["invites"] = [i for i in data.get("invites", []) if i["id"] != invite_id]
     save_company_data(company_id, data)
+
 
