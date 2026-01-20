@@ -19,3 +19,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Secrets and credentials (DO NOT COMMIT)
+.streamlit/secrets.toml
+*.json
+!package.json
+credentials.json
+service_account.json

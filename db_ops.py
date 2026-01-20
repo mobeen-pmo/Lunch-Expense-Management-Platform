@@ -7,6 +7,7 @@ Features:
 - Multi-Company Support
 - Role-based Access (Admin/Member)
 - Data Isolation per Company
+- Auto-switches between JSON (local) and Google Sheets (production)
 """
 
 import json
@@ -16,6 +17,33 @@ import secrets
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict
 import uuid
+
+# Try to import Google Sheets adapter (only available on Streamlit Cloud)
+try:
+    from db_gsheets import (
+        is_gsheets_available,
+        get_super_admin_gsheets,
+        save_super_admin_gsheets,
+        get_all_companies_gsheets,
+        save_all_companies_gsheets,
+        load_company_data_gsheets,
+        save_company_data_gsheets,
+        delete_company_data_gsheets
+    )
+    GSHEETS_AVAILABLE = is_gsheets_available()
+except ImportError:
+    GSHEETS_AVAILABLE = False
+
+# Check if running on Streamlit Cloud
+def use_gsheets() -> bool:
+    """Determine if we should use Google Sheets for storage"""
+    if not GSHEETS_AVAILABLE:
+        return False
+    try:
+        from db_gsheets import is_gsheets_available
+        return is_gsheets_available()
+    except:
+        return False
 
 # Default permissions for new employees
 DEFAULT_PERMISSIONS = {
@@ -40,6 +68,7 @@ COMPANIES_FILE = os.path.join(DATA_DIR, "companies.json")
 # Ensure data directory exists
 os.makedirs(DATA_DIR, exist_ok=True)
 
+
 def hash_password(password: str) -> str:
     """Hash password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
@@ -51,9 +80,17 @@ def verify_password(password: str, hashed: str) -> bool:
 # ==================== SUPER ADMIN ====================
 def get_super_admin():
     """Get super admin credentials"""
+    # Try Google Sheets first
+    if use_gsheets():
+        admin = get_super_admin_gsheets()
+        if admin:
+            return admin
+    
+    # Fall back to JSON file
     if os.path.exists(SUPER_ADMIN_FILE):
         with open(SUPER_ADMIN_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
+    
     # Default super admin - Software Bazaar IT Solutions
     default_admin = {
         "email": "softwarebazaaritsolutions@gmail.com",
@@ -65,6 +102,12 @@ def get_super_admin():
 
 def save_super_admin(admin_data):
     """Save super admin data"""
+    # Save to Google Sheets if available
+    if use_gsheets():
+        save_super_admin_gsheets(admin_data)
+        return
+    
+    # Fall back to JSON file
     with open(SUPER_ADMIN_FILE, 'w', encoding='utf-8') as f:
         json.dump(admin_data, f, indent=2)
 
@@ -82,6 +125,13 @@ def update_super_admin_password(new_password: str):
 # ==================== COMPANIES ====================
 def get_all_companies() -> List[Dict]:
     """Get all registered companies (for super admin)"""
+    # Try Google Sheets first
+    if use_gsheets():
+        companies = get_all_companies_gsheets()
+        if companies is not None:
+            return companies
+    
+    # Fall back to JSON file
     if os.path.exists(COMPANIES_FILE):
         with open(COMPANIES_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -89,6 +139,12 @@ def get_all_companies() -> List[Dict]:
 
 def save_all_companies(companies: List[Dict]):
     """Save all companies"""
+    # Save to Google Sheets if available
+    if use_gsheets():
+        save_all_companies_gsheets(companies)
+        return
+    
+    # Fall back to JSON file
     with open(COMPANIES_FILE, 'w', encoding='utf-8') as f:
         json.dump(companies, f, indent=2, default=str)
 
@@ -163,10 +219,13 @@ def delete_company(company_id: str):
     companies = [c for c in companies if c["id"] != company_id]
     save_all_companies(companies)
     
-    # Delete data file
-    file_path = get_company_data_file(company_id)
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    # Delete data file/entry
+    if use_gsheets():
+        delete_company_data_gsheets(company_id)
+    else:
+        file_path = get_company_data_file(company_id)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 def get_company_by_email(email: str) -> Optional[Dict]:
     """Get company by admin email"""
@@ -209,30 +268,48 @@ def init_company_data(company_id: str):
 
 def load_company_data(company_id: str) -> Dict:
     """Load company data"""
-    file_path = get_company_data_file(company_id)
-    if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            # Ensure tea exists in menu items
-            menu_ids = [m["id"] for m in data.get("menu_items", [])]
-            if "tea" not in menu_ids:
-                data["menu_items"].append(
-                    {"id": "tea", "name": "Tea", "price": 15, "unit": "cup", "shared": False}
-                )
-            # Update tea to fixed price if it was shared
-            for item in data["menu_items"]:
-                if item["id"] == "tea" and item.get("shared", True):
-                    item["shared"] = False
-                    if item["price"] == 0:
-                        item["price"] = 15
-            if "members" not in data:
-                data["members"] = []
-            return data
+    data = None
+    
+    # Try Google Sheets first
+    if use_gsheets():
+        data = load_company_data_gsheets(company_id)
+    
+    # Fall back to JSON file
+    if data is None:
+        file_path = get_company_data_file(company_id)
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+    
+    if data:
+        # Ensure tea exists in menu items
+        menu_ids = [m["id"] for m in data.get("menu_items", [])]
+        if "tea" not in menu_ids:
+            data["menu_items"].append(
+                {"id": "tea", "name": "Tea", "price": 15, "unit": "cup", "shared": False}
+            )
+        # Update tea to fixed price if it was shared
+        for item in data["menu_items"]:
+            if item["id"] == "tea" and item.get("shared", True):
+                item["shared"] = False
+                if item["price"] == 0:
+                    item["price"] = 15
+        if "members" not in data:
+            data["members"] = []
+        return data
+    
+    # No data found, initialize new company data
     init_company_data(company_id)
     return load_company_data(company_id)
 
 def save_company_data(company_id: str, data: Dict):
     """Save company data"""
+    # Save to Google Sheets if available
+    if use_gsheets():
+        save_company_data_gsheets(company_id, data)
+        return
+    
+    # Fall back to JSON file
     file_path = get_company_data_file(company_id)
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, default=str)

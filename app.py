@@ -44,7 +44,7 @@ from db_ops import (
     # Menu
     get_menu_items, update_menu_price,
     # Calculations
-    calculate_monthly_consumption, get_monthly_balance,
+    calculate_daily_cost, calculate_monthly_consumption, get_monthly_balance,
     load_company_data
 )
 from config import DEFAULT_MONTHLY_COLLECTION
