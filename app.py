@@ -856,14 +856,25 @@ def show_company_dashboard():
                                 perms["can_delete_employees"] = ip_del_emps
                                 
                                 invite = create_invite_token(company_id, i_email, i_name, i_col, perms, st.session_state.user_name)
-                                invite_link = f"http://localhost:8501/?invite={invite['token']}"
+                                
+                                # Get app URL dynamically
+                                try:
+                                    app_url = st.secrets.get("app_url", "")
+                                except:
+                                    app_url = ""
+                                
+                                if not app_url:
+                                    # Default to localhost for local development
+                                    app_url = "http://localhost:8501"
+                                
+                                invite_link = f"{app_url}/?invite={invite['token']}"
                                 
                                 if EMAIL_ENABLED:
                                     send_employee_invite(i_email, st.session_state.company_name, i_name, st.session_state.user_name, invite_link)
                                     st.success(f"Invite sent to {i_email}!")
                                 else:
                                     st.warning("Email service not configured. Share this link manually:")
-                                    st.code(f"?invite={invite['token']}")
+                                    st.code(invite_link)
                                     st.success(f"Invite created for {i_name}")
                                     
                             except ValueError as e:
