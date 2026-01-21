@@ -305,6 +305,13 @@ def show_login_page():
                 remember = st.checkbox("Remember me")
                 
                 if st.form_submit_button("Login", use_container_width=True):
+                    # DEBUG: Show what data is available
+                    import db_ops
+                    all_companies = db_ops.get_all_companies()
+                    st.info(f"DEBUG: Found {len(all_companies)} companies in database")
+                    if all_companies:
+                        st.info(f"DEBUG: Company emails: {[c.get('admin_email', 'no-email') for c in all_companies]}")
+                    
                     # 1. Try Company Admin Login
                     try:
                         company = verify_company_login(email, password)
@@ -323,6 +330,8 @@ def show_login_page():
                     except ValueError as e:
                         st.error(str(e))
                         return # Stop if deactivated
+                    except Exception as e:
+                        st.error(f"DEBUG: Company login error: {e}")
 
                     # 2. Try Employee Login if Company failed
                     try:
@@ -349,6 +358,8 @@ def show_login_page():
                     except ValueError as e:
                         st.error(str(e))
                         return
+                    except Exception as e:
+                        st.error(f"DEBUG: Employee login error: {e}")
 
                     # 3. Both failed
                     st.error("Invalid email or password")
@@ -655,6 +666,19 @@ def show_company_dashboard():
     
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div style="text-align: center; color: #64748b; font-size: 0.8rem;"><strong>Software Bazaar IT Solutions</strong><br>Founded by Mirza M Mobeen</div>', unsafe_allow_html=True)
+    
+    # DEBUG PANEL - Shows session state for debugging deployment issues
+    with st.sidebar.expander("🔧 Debug Info"):
+        st.write(f"**User Type:** {st.session_state.get('user_type', 'NOT SET')}")
+        st.write(f"**User Role:** {st.session_state.get('user_role', 'NOT SET')}")
+        st.write(f"**Company ID:** {st.session_state.get('company_id', 'NOT SET')}")
+        st.write(f"**Employee ID:** {st.session_state.get('employee_id', 'NOT SET')}")
+        st.write(f"**Permissions:** {st.session_state.get('permissions', {})}")
+        st.write(f"**has_permission checks:**")
+        st.write(f"- can_view_all: {has_permission('can_view_all')}")
+        st.write(f"- can_add_employees: {has_permission('can_add_employees')}")
+        st.write(f"- can_view_reports: {has_permission('can_view_reports')}")
+        st.write(f"- can_manage_settings: {has_permission('can_manage_settings')}")
             
     # Function to get latest prices
     menu_items = get_menu_items(company_id)
