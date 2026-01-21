@@ -686,9 +686,36 @@ def show_company_dashboard():
         st.write(f"- can_view_reports: {has_permission('can_view_reports')}")
         st.write(f"- can_manage_settings: {has_permission('can_manage_settings')}")
     
-    # DEBUG: Show navigation state IN MAIN AREA
-    st.info(f"🔧 DEBUG v5: Selected page = '{page}' | User type = '{st.session_state.get('user_type')}' | Menu items = {menu}")
-            
+    # ===== MAIN AREA NAVIGATION BUTTONS (since sidebar may be hidden) =====
+    st.markdown("### 📋 Quick Navigation")
+    nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns(5)
+    with nav_col1:
+        if st.button("🏠 Dashboard", use_container_width=True, type="primary" if page == "🏠 Dashboard" else "secondary"):
+            st.session_state.nav_page = "🏠 Dashboard"
+            st.rerun()
+    with nav_col2:
+        if st.button("👥 Employees", use_container_width=True, type="primary" if page == "👥 Employees" else "secondary"):
+            st.session_state.nav_page = "👥 Employees"
+            st.rerun()
+    with nav_col3:
+        if st.button("📝 Daily Entry", use_container_width=True, type="primary" if page == "📝 Daily Entry" else "secondary"):
+            st.session_state.nav_page = "📝 Daily Entry"
+            st.rerun()
+    with nav_col4:
+        if st.button("📊 Report", use_container_width=True, type="primary" if page == "📊 Monthly Report" else "secondary"):
+            st.session_state.nav_page = "📊 Monthly Report"
+            st.rerun()
+    with nav_col5:
+        if st.button("⚙️ Settings", use_container_width=True, type="primary" if page == "⚙️ Settings" else "secondary"):
+            st.session_state.nav_page = "⚙️ Settings"
+            st.rerun()
+    
+    # Use nav_page from session state if set, else use sidebar page
+    if "nav_page" in st.session_state:
+        page = st.session_state.nav_page
+    
+    st.markdown("---")
+    
     # Function to get latest prices
     menu_items = get_menu_items(company_id)
     prices = {m["id"]: m["price"] for m in menu_items}
