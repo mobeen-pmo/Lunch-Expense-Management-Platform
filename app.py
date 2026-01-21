@@ -1183,3 +1183,7 @@ elif st.session_state.user_type == "super_admin":
     show_super_admin_dashboard()
 else:
     show_company_dashboard()
+
+# DEBUG VERSION INDICATOR - Remove after debugging
+st.sidebar.markdown("---")
+st.sidebar.error("DEBUG v4 - Menu forced on")
