@@ -661,10 +661,11 @@ def show_company_dashboard():
     # FORCE: Always add Settings for now (was: has_permission check)
     menu.append("⚙️ Settings")
     
-    # DEBUG: Show what menu items were added
-    st.sidebar.caption(f"Menu items: {len(menu)}")
-        
-    page = st.sidebar.radio("Menu", menu, label_visibility="collapsed")
+    # DEBUG: Show menu items in sidebar
+    st.sidebar.caption(f"Menu: {len(menu)} items loaded")
+    
+    # Use SELECTBOX instead of radio (debugging)
+    page = st.sidebar.selectbox("📋 Navigate", menu, key="main_nav")
     
     if st.sidebar.button("🚪 Logout", use_container_width=True):
         logout()
@@ -684,6 +685,9 @@ def show_company_dashboard():
         st.write(f"- can_add_employees: {has_permission('can_add_employees')}")
         st.write(f"- can_view_reports: {has_permission('can_view_reports')}")
         st.write(f"- can_manage_settings: {has_permission('can_manage_settings')}")
+    
+    # DEBUG: Show navigation state IN MAIN AREA
+    st.info(f"🔧 DEBUG v5: Selected page = '{page}' | User type = '{st.session_state.get('user_type')}' | Menu items = {menu}")
             
     # Function to get latest prices
     menu_items = get_menu_items(company_id)
