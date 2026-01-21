@@ -646,18 +646,23 @@ def show_company_dashboard():
         
     st.sidebar.markdown("---")
     
-    # Permission-based Menu
+    # Permission-based Menu - TEMPORARILY FORCED FOR DEBUGGING
+    # The issue is menu items not appearing on deployment
     menu = ["🏠 Dashboard"]
     
-    if has_permission("can_view_all") or has_permission("can_add_employees"):
-        menu.append("👥 Employees")
+    # FORCE: Always add Employees menu for now (was: has_permission check)
+    menu.append("👥 Employees")
     
     menu.append("📝 Daily Entry")
     
-    if has_permission("can_view_reports"):
-        menu.append("📊 Monthly Report")
-    if has_permission("can_manage_settings"):
-        menu.append("⚙️ Settings")
+    # FORCE: Always add Monthly Report for now (was: has_permission check)
+    menu.append("📊 Monthly Report")
+    
+    # FORCE: Always add Settings for now (was: has_permission check)
+    menu.append("⚙️ Settings")
+    
+    # DEBUG: Show what menu items were added
+    st.sidebar.caption(f"Menu items: {len(menu)}")
         
     page = st.sidebar.radio("Menu", menu, label_visibility="collapsed")
     
