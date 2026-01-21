@@ -23,7 +23,9 @@ EMAIL_CONFIG = {
     "app_password": "poxmfdmnwwmbrtzx"  # Gmail App Password (no spaces)
 }
 
-OTP_FILE = "data/otp_store.json"
+# Use absolute path based on this file's location
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+OTP_FILE = os.path.join(SCRIPT_DIR, "data", "otp_store.json")
 
 def generate_otp(length=6):
     """Generate a random OTP"""
@@ -31,7 +33,8 @@ def generate_otp(length=6):
 
 def store_otp(email: str, otp: str, purpose: str = "registration"):
     """Store OTP with expiry (10 minutes)"""
-    os.makedirs("data", exist_ok=True)
+    data_dir = os.path.join(SCRIPT_DIR, "data")
+    os.makedirs(data_dir, exist_ok=True)
     
     otp_data = {}
     if os.path.exists(OTP_FILE):

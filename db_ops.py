@@ -47,7 +47,9 @@ DEFAULT_PERMISSIONS = {
 # Admin gets all permissions
 ADMIN_PERMISSIONS = {key: True for key in DEFAULT_PERMISSIONS}
 
-DATA_DIR = "data"
+# Use absolute path based on this file's location
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, "data")
 SUPER_ADMIN_FILE = os.path.join(DATA_DIR, "super_admin.json")
 COMPANIES_FILE = os.path.join(DATA_DIR, "companies.json")
 
